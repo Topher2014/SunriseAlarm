@@ -1,0 +1,44 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation manual: !include_dir_merge_list automations 
+automation ui: !include automations.yaml
+
+input_boolean:
+  alarm_paused:
+  alarm1_state:
+  alarm2_state:
+  alarm1_trigger:
+  alarm2_trigger:
+  alarm1_monday:
+  alarm1_tuesday:
+  alarm1_wednesday:
+  alarm1_thursday:
+  alarm1_friday:
+  alarm1_saturday:
+  alarm1_sunday:
+  alarm2_monday:
+  alarm2_tuesday:
+  alarm2_wednesday:
+  alarm2_thursday:
+  alarm2_friday:
+  alarm2_saturday:
+  alarm2_sunday:
+
+input_datetime:
+  alarm1_time:
+    name: "Alarm 1 time"
+    has_time: true
+    has_date: false
+    icon: mdi:clock
+
+  alarm2_time:
+    name: "Alarm 2 time"
+    has_time: true
+    has_date: false
+    icon: mdi:clock

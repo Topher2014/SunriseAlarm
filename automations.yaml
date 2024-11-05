@@ -1,0 +1,60 @@
+- id: '1726529116582'
+  alias: Wakeup
+  description: ''
+  trigger:
+  - platform: template
+    value_template: '{{ now().timestamp() | timestamp_custom(''%H:%M'') == (state_attr(''input_datetime.alarm1_time'',
+      ''timestamp'')) | timestamp_custom(''%H:%M'', false) and is_state(''input_boolean.alarm1_''
+      ~ now().strftime(''%A'')|lower, ''on'') and is_state(''input_boolean.alarm1_state'',
+      ''on'') }}'
+  - platform: template
+    value_template: '{{ now().timestamp() | timestamp_custom(''%H:%M'') == (state_attr(''input_datetime.alarm2_time'',
+      ''timestamp'')) | timestamp_custom(''%H:%M'', false) and is_state(''input_boolean.alarm2_''
+      ~ now().strftime(''%A'')|lower, ''on'') and is_state(''input_boolean.alarm2_state'',
+      ''on'') }}'
+  condition: []
+  action:
+  - action: light.turn_on
+    metadata: {}
+    data: {}
+    target:
+      device_id:
+      - 658691f2f2223d75fa7add7dfb07e155
+  - action: light.turn_on
+    metadata: {}
+    data:
+      brightness_pct: 75
+    target:
+      device_id: 7a10fa54ae5a68da2e65c3a41663d82d
+  - action: light.turn_on
+    metadata: {}
+    data: {}
+    target:
+      device_id:
+      - a0ba9c8054f0ffbf19cf699ff2c4263c
+      - 129b5bf8cd010266e1e74c6a657164f9
+  - type: turn_on
+    device_id: e7d7a20fbc22567dff7d4a52b63d20c4
+    entity_id: c46cb727686a3fe9f9e932c37b0b998f
+    domain: switch
+  mode: single
+- id: '1729890878364'
+  alias: Kettle On
+  description: ''
+  trigger:
+  - platform: time
+    at: 06:45:00
+  condition:
+  - condition: time
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  action:
+  - type: turn_on
+    device_id: e7d7a20fbc22567dff7d4a52b63d20c4
+    entity_id: c46cb727686a3fe9f9e932c37b0b998f
+    domain: switch
+  mode: single

@@ -1,0 +1,301 @@
+- id: '1729122479599'
+  alias: Start/Skip
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.sunrisealarm_button1
+    from: 'off'
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      start_time: '{{ as_timestamp(now()) }}'
+  - wait_for_trigger:
+    - platform: state
+      entity_id: binary_sensor.sunrisealarm_button1
+      from: 'on'
+      to: 'off'
+    timeout:
+      hours: 0
+      minutes: 0
+      seconds: 5
+      milliseconds: 0
+  - variables:
+      end_time: '{{ as_timestamp(now()) }}'
+      elapsed_time: '{{ (end_time - start_time) }}'
+  - variables:
+      current_timestamp: '{{ as_timestamp(now()) }}'
+      current_day: '{{ now().weekday() }}'
+      alarm1_time: '{{ states(''input_datetime.alarm1_time'') }}'
+      alarm2_time: '{{ states(''input_datetime.alarm2_time'') }}'
+      alarm1_timestamp: "{{ as_timestamp(now().replace(hour=alarm1_time.split(':')[0]|int,
+        \n                              minute=alarm1_time.split(':')[1]|int, \n                              second=0,
+        \n                              microsecond=0)) }}\n"
+      alarm2_timestamp: "{{ as_timestamp(now().replace(hour=alarm2_time.split(':')[0]|int,
+        \n                              minute=alarm2_time.split(':')[1]|int, \n                              second=0,
+        \n                              microsecond=0)) }}\n"
+      alarm1_days: "{{ [states('input_boolean.alarm1_monday'),\n    states('input_boolean.alarm1_tuesday'),\n
+        \   states('input_boolean.alarm1_wednesday'),\n    states('input_boolean.alarm1_thursday'),\n
+        \   states('input_boolean.alarm1_friday'),\n    states('input_boolean.alarm1_saturday'),\n
+        \   states('input_boolean.alarm1_sunday')] }}\n"
+      alarm2_days: "{{ [states('input_boolean.alarm2_monday'),\n    states('input_boolean.alarm2_tuesday'),\n
+        \   states('input_boolean.alarm2_wednesday'),\n    states('input_boolean.alarm2_thursday'),\n
+        \   states('input_boolean.alarm2_friday'),\n    states('input_boolean.alarm2_saturday'),\n
+        \   states('input_boolean.alarm2_sunday')] }}\n"
+  - variables:
+      next_alarm1_day: "{% set found_day = namespace(value=none) %} {% for i in range(7)
+        %}\n  {% set check_day = (current_day + i) % 7 %}\n  {% if alarm1_days[check_day]
+        == 'on' %}\n    {% if i == 0 and alarm1_timestamp <= current_timestamp %}\n
+        \     {% continue %}\n    {% endif %}\n    {% set found_day.value = check_day
+        %}\n    {% break %}\n  {% endif %}\n{% endfor %} {{ found_day.value }}\n"
+      next_alarm2_day: "{% set found_day = namespace(value=none) %} {% for i in range(7)
+        %}\n  {% set check_day = (current_day + i) % 7 %}\n  {% if alarm2_days[check_day]
+        == 'on' %}\n    {% if i == 0 and alarm2_timestamp <= current_timestamp %}\n
+        \     {% continue %}\n    {% endif %}\n    {% set found_day.value = check_day
+        %}\n    {% break %}\n  {% endif %}\n{% endfor %} {{ found_day.value }}\n"
+  - variables:
+      next_alarm1_timestamp: "{% if next_alarm1_day is not none and next_alarm1_day
+        != '' %}\n  {% set days_diff = (next_alarm1_day|int - current_day + 7) % 7
+        %}\n  {% if days_diff == 0 and alarm1_timestamp <= current_timestamp %}\n
+        \   {% set days_diff = 7 %}\n  {% endif %}\n  {{ alarm1_timestamp + (days_diff
+        * 24 * 3600) }}\n{% else %}\n  {{ none }}\n{% endif %}\n"
+      next_alarm2_timestamp: "{% if next_alarm2_day is not none and next_alarm2_day
+        != '' %}\n  {% set days_diff = (next_alarm2_day|int - current_day + 7) % 7
+        %}\n  {% if days_diff == 0 and alarm2_timestamp <= current_timestamp %}\n
+        \   {% set days_diff = 7 %}\n  {% endif %}\n  {{ alarm2_timestamp + (days_diff
+        * 24 * 3600) }}\n{% else %}\n  {{ none }}\n{% endif %}\n"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ elapsed_time < 5 }}'
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 20
+        target:
+          area_id: bedroom
+      - variables:
+          current_timestamp: '{{ as_timestamp(now()) }}'
+          current_day: '{{ now().weekday() }}'
+          alarm1_time: '{{ states(''input_datetime.alarm1_time'') }}'
+          alarm2_time: '{{ states(''input_datetime.alarm2_time'') }}'
+          alarm1_timestamp: "{{ as_timestamp(now().replace(hour=alarm1_time.split(':')[0]|int,
+            \n                              minute=alarm1_time.split(':')[1]|int,
+            \n                              second=0, \n                              microsecond=0))
+            }}\n"
+          alarm2_timestamp: "{{ as_timestamp(now().replace(hour=alarm2_time.split(':')[0]|int,
+            \n                         minute=alarm2_time.split(':')[1]|int, \n                         second=0,
+            \n                         microsecond=0)) }}\n"
+          alarm1_days: "{{ [states('input_boolean.alarm1_monday'),\n    states('input_boolean.alarm1_tuesday'),\n
+            \   states('input_boolean.alarm1_wednesday'),\n    states('input_boolean.alarm1_thursday'),\n
+            \   states('input_boolean.alarm1_friday'),\n    states('input_boolean.alarm1_saturday'),\n
+            \   states('input_boolean.alarm1_sunday')] }}\n"
+          alarm2_days: "{{ [states('input_boolean.alarm2_monday'),\n    states('input_boolean.alarm2_tuesday'),\n
+            \   states('input_boolean.alarm2_wednesday'),\n    states('input_boolean.alarm2_thursday'),\n
+            \   states('input_boolean.alarm2_friday'),\n    states('input_boolean.alarm2_saturday'),\n
+            \   states('input_boolean.alarm2_sunday')] }}\n"
+      - variables:
+          next_alarm1_day: "{% set found_day = namespace(value=none) %} {% for i in
+            range(7) %}\n  {% set check_day = (current_day + i) % 7 %}\n  {% if alarm1_days[check_day]
+            == 'on' %}\n    {% if i == 0 and alarm1_timestamp <= current_timestamp
+            %}\n      {% continue %}\n    {% endif %}\n    {% set found_day.value
+            = check_day %}\n    {% break %}\n  {% endif %}\n{% endfor %} {{ found_day.value
+            }}\n"
+          next_alarm2_day: "{% set found_day = namespace(value=none) %} {% for i in
+            range(7) %}\n  {% set check_day = (current_day + i) % 7 %}\n  {% if alarm2_days[check_day]
+            == 'on' %}\n    {% if i == 0 and alarm2_timestamp <= current_timestamp
+            %}\n      {% continue %}\n    {% endif %}\n    {% set found_day.value
+            = check_day %}\n    {% break %}\n  {% endif %}\n{% endfor %} {{ found_day.value
+            }}\n"
+      - variables:
+          next_alarm1_timestamp: "{% if next_alarm1_day is not none and next_alarm1_day
+            != '' %}\n  {% set days_diff = (next_alarm1_day|int - current_day + 7)
+            % 7 %}\n  {% if days_diff == 0 and alarm1_timestamp <= current_timestamp
+            %}\n    {% set days_diff = 7 %}\n  {% endif %}\n  {{ alarm1_timestamp
+            + (days_diff * 24 * 3600) }}\n{% else %}\n  {{ none }}\n{% endif %}\n"
+          next_alarm2_timestamp: "{% if next_alarm2_day is not none and next_alarm2_day
+            != '' %}\n  {% set days_diff = (next_alarm2_day|int - current_day + 7)
+            % 7 %}\n  {% if days_diff == 0 and alarm2_timestamp <= current_timestamp
+            %}\n    {% set days_diff = 7 %}\n  {% endif %}\n  {{ alarm2_timestamp
+            + (days_diff * 24 * 3600) }}\n{% else %}\n  {{ none }}\n{% endif %}\n"
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: "                  {{ next_alarm2_timestamp == none or
+              \n                     (next_alarm1_timestamp != none and next_alarm1_timestamp
+              < next_alarm2_timestamp) }}"
+          sequence:
+          - variables:
+              delay_seconds: '{{ (next_alarm1_timestamp - current_timestamp) + 60
+                | int }}'
+              day_of_week: '{% set days = [''monday'', ''tuesday'', ''wednesday'',
+                ''thursday'', ''friday'', ''saturday'', ''sunday''] %} {{ days[next_alarm1_day|int]
+                }}'
+          - target:
+              entity_id: input_boolean.alarm1_{{ day_of_week }}
+            action: input_boolean.turn_off
+            data: {}
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.alarm_paused
+            data: {}
+          - delay:
+              seconds: '{{ delay_seconds }}'
+          - action: input_boolean.turn_on
+            target:
+              entity_id:
+              - input_boolean.alarm1_{{ day_of_week }}
+            data: {}
+          - action: input_boolean.turn_off
+            target:
+              entity_id:
+              - input_boolean.alarm_paused
+            data: {}
+        - conditions:
+          - condition: template
+            value_template: "                  {{ next_alarm1_timestamp == none or
+              \n                     (next_alarm2_timestamp != none and next_alarm2_timestamp
+              < next_alarm1_timestamp) }}"
+          sequence:
+          - variables:
+              delay_seconds: '{{ (next_alarm2_timestamp - current_timestamp) + 60
+                | int }}'
+              day_of_week: '{% set days = [''monday'', ''tuesday'', ''wednesday'',
+                ''thursday'', ''friday'', ''saturday'', ''sunday''] %} {{ days[next_alarm2_day|int]
+                }}'
+          - target:
+              entity_id: input_boolean.alarm2_{{ day_of_week }}
+            action: input_boolean.turn_off
+            data: {}
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.alarm_paused
+            data: {}
+          - delay:
+              seconds: '{{ delay_seconds }}'
+          - action: input_boolean.turn_on
+            target:
+              entity_id:
+              - input_boolean.alarm2_{{ day_of_week }}
+            data: {}
+          - action: input_boolean.turn_off
+            target:
+              entity_id:
+              - input_boolean.alarm_paused
+            data: {}
+    - conditions:
+      - condition: template
+        value_template: '{{ elapsed_time >= 5 }}'
+      sequence:
+      - variables:
+          current_timestamp: '{{ as_timestamp(now()) }}'
+          current_day: '{{ now().weekday() }}'
+          alarm1_time: '{{ states(''input_datetime.alarm1_time'') }}'
+          alarm2_time: '{{ states(''input_datetime.alarm2_time'') }}'
+          alarm1_timestamp: "{{ as_timestamp(now().replace(hour=alarm1_time.split(':')[0]|int,
+            \n                              minute=alarm1_time.split(':')[1]|int,
+            \n                              second=0, \n                              microsecond=0))
+            }}\n"
+          alarm2_timestamp: "{{ as_timestamp(now().replace(hour=alarm2_time.split(':')[0]|int,
+            \n                         minute=alarm2_time.split(':')[1]|int, \n                         second=0,
+            \n                         microsecond=0)) }}\n"
+          alarm1_days: "{{ [states('input_boolean.alarm1_monday'),\n    states('input_boolean.alarm1_tuesday'),\n
+            \   states('input_boolean.alarm1_wednesday'),\n    states('input_boolean.alarm1_thursday'),\n
+            \   states('input_boolean.alarm1_friday'),\n    states('input_boolean.alarm1_saturday'),\n
+            \   states('input_boolean.alarm1_sunday')] }}\n"
+          alarm2_days: "{{ [states('input_boolean.alarm2_monday'),\n    states('input_boolean.alarm2_tuesday'),\n
+            \   states('input_boolean.alarm2_wednesday'),\n    states('input_boolean.alarm2_thursday'),\n
+            \   states('input_boolean.alarm2_friday'),\n    states('input_boolean.alarm2_saturday'),\n
+            \   states('input_boolean.alarm2_sunday')] }}\n"
+      - variables:
+          next_alarm1_day: "{% set found_day = namespace(value=none) %} {% for i in
+            range(7) %}\n  {% set check_day = (current_day + i) % 7 %}\n  {% if alarm1_days[check_day]
+            == 'on' %}\n    {% if i == 0 and alarm1_timestamp <= current_timestamp
+            %}\n      {% continue %}\n    {% endif %}\n    {% set found_day.value
+            = check_day %}\n    {% break %}\n  {% endif %}\n{% endfor %} {{ found_day.value
+            }}\n"
+          next_alarm2_day: "{% set found_day = namespace(value=none) %} {% for i in
+            range(7) %}\n  {% set check_day = (current_day + i) % 7 %}\n  {% if alarm2_days[check_day]
+            == 'on' %}\n    {% if i == 0 and alarm2_timestamp <= current_timestamp
+            %}\n      {% continue %}\n    {% endif %}\n    {% set found_day.value
+            = check_day %}\n    {% break %}\n  {% endif %}\n{% endfor %} {{ found_day.value
+            }}\n"
+      - variables:
+          next_alarm1_timestamp: "{% if next_alarm1_day is not none and next_alarm1_day
+            != '' %}\n  {% set days_diff = (next_alarm1_day|int - current_day + 7)
+            % 7 %}\n  {% if days_diff == 0 and alarm1_timestamp <= current_timestamp
+            %}\n    {% set days_diff = 7 %}\n  {% endif %}\n  {{ alarm1_timestamp
+            + (days_diff * 24 * 3600) }}\n{% else %}\n  {{ none }}\n{% endif %}\n"
+          next_alarm2_timestamp: "{% if next_alarm2_day is not none and next_alarm2_day
+            != '' %}\n  {% set days_diff = (next_alarm2_day|int - current_day + 7)
+            % 7 %}\n  {% if days_diff == 0 and alarm2_timestamp <= current_timestamp
+            %}\n    {% set days_diff = 7 %}\n  {% endif %}\n  {{ alarm2_timestamp
+            + (days_diff * 24 * 3600) }}\n{% else %}\n  {{ none }}\n{% endif %}\n"
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: "                  {{ next_alarm2_timestamp == none or
+              \n                     (next_alarm1_timestamp != none and next_alarm1_timestamp
+              < next_alarm2_timestamp) }}"
+          sequence:
+          - variables:
+              delay_seconds: '{{ (next_alarm1_timestamp - current_timestamp) + 60
+                | int }}'
+              day_of_week: '{% set days = [''monday'', ''tuesday'', ''wednesday'',
+                ''thursday'', ''friday'', ''saturday'', ''sunday''] %} {{ days[next_alarm1_day|int]
+                }}'
+          - target:
+              entity_id: input_boolean.alarm1_{{ day_of_week }}
+            action: input_boolean.turn_off
+            data: {}
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.alarm_paused
+            data: {}
+          - delay:
+              seconds: '{{ delay_seconds }}'
+          - action: input_boolean.turn_on
+            target:
+              entity_id:
+              - input_boolean.alarm1_{{ day_of_week }}
+            data: {}
+          - action: input_boolean.turn_off
+            target:
+              entity_id:
+              - input_boolean.alarm_paused
+            data: {}
+        - conditions:
+          - condition: template
+            value_template: "                  {{ next_alarm1_timestamp == none or
+              \n                     (next_alarm2_timestamp != none and next_alarm2_timestamp
+              < next_alarm1_timestamp) }}"
+          sequence:
+          - variables:
+              delay_seconds: '{{ (next_alarm2_timestamp - current_timestamp) + 60
+                | int }}'
+              day_of_week: '{% set days = [''monday'', ''tuesday'', ''wednesday'',
+                ''thursday'', ''friday'', ''saturday'', ''sunday''] %} {{ days[next_alarm2_day|int]
+                }}'
+          - target:
+              entity_id: input_boolean.alarm2_{{ day_of_week }}
+            action: input_boolean.turn_off
+            data: {}
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.alarm_paused
+            data: {}
+          - delay:
+              seconds: '{{ delay_seconds }}'
+          - action: input_boolean.turn_on
+            target:
+              entity_id:
+              - input_boolean.alarm2_{{ day_of_week }}
+            data: {}
+          - action: input_boolean.turn_off
+            target:
+              entity_id:
+              - input_boolean.alarm_paused
+            data: {}
+  mode: single

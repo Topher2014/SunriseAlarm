@@ -1,0 +1,59 @@
+- id: '1728017002479'
+  alias: Snooze/Stop
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.sunrisealarm_button2
+    from: 'off'
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      start_time: '{{ as_timestamp(now()) }}'
+  - wait_for_trigger:
+    - platform: state
+      entity_id: binary_sensor.sunrisealarm_button2
+      from: 'on'
+      to: 'off'
+    timeout:
+      hours: 0
+      minutes: 0
+      seconds: 5
+      milliseconds: 0
+  - variables:
+      end_time: '{{ as_timestamp(now()) }}'
+      elapsed_time: '{{ (end_time - start_time) }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ elapsed_time < 5 }}'
+      - condition: state
+        entity_id: media_player.sunrisealarm_speaker
+        state: playing
+      sequence:
+      - action: media_player.media_pause
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.sunrisealarm_speaker
+      - delay:
+          hours: 0
+          minutes: 2
+          seconds: 30
+          milliseconds: 0
+      - action: media_player.media_play
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.sunrisealarm_speaker
+    - conditions:
+      - condition: template
+        value_template: '{{ elapsed_time >= 5 }}'
+      sequence:
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.sunrisealarm_speaker
+  mode: single
