@@ -15,11 +15,11 @@ logger:
 # Enable Home Assistant API
 api:
   encryption:
-    key: ""
+    key: "5owqO5lHr785EPum3FrNusnt0HdIC8eCMaON1ZrC+Ko="
 
 ota:
   - platform: esphome
-    password: ""
+    password: "dc37160d0acbdc2a439001381199f250"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -28,11 +28,31 @@ wifi:
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Sunrisealarm Fallback Hotspot"
-    password: ""
+    password: "x1RWTdlCCIQJ"
 
 captive_portal:
 
+globals:
+  - id: temp_time
+    type: std::string
+    initial_value: '""'
+
 binary_sensor:
+  - platform: homeassistant
+    name: 'Kettle Switch'
+    entity_id: switch.kettle_power_switch
+    id: kettle_power_switch
+  - platform: homeassistant
+    name: "Bedroom Lights State"
+    entity_id: light.bedroom_lights
+    id: bedroom_lights_state
+  - platform: homeassistant
+    name: "Common Area Lights State"
+    entity_id: light.common_area_lights
+    id: common_lights_state
+  - platform: homeassistant
+    id: blinds_cover
+    entity_id: cover.blinds_curtain
   - platform: gpio
     pin:
       number: GPIO14
@@ -50,16 +70,24 @@ binary_sensor:
       number: GPIO18
       mode: INPUT_PULLUP
       inverted: True
+    on_press:
+      - if:
+          condition:
+            display_menu.is_active: oled_menu
+          then:
+            - display_menu.enter: oled_menu
+          else:
+            - display_menu.show:  oled_menu
     name: "RotaryButton"
 
-  - platform: homeassistant
-    name: "Alarm 1 State"
-    entity_id: input_boolean.alarm1_state
-    id: alarm1_state
   - platform: homeassistant
     name: "Alarm Paused State"
     entity_id: input_boolean.alarm_paused
     id: alarm_paused
+  - platform: homeassistant
+    name: "Alarm 1 State"
+    entity_id: input_boolean.alarm1_state
+    id: alarm1_state
   - platform: homeassistant
     name: "Alarm 2 State"
     entity_id: input_boolean.alarm2_state
@@ -121,6 +149,7 @@ binary_sensor:
     entity_id: input_boolean.alarm2_sunday
     id: alarm2_sunday
 
+
 sensor:
   - platform: rotary_encoder
     name: "Rotary Encoder"
@@ -137,12 +166,34 @@ sensor:
         input: true
         pullup: true
     on_clockwise:
-      - logger.log: "Turned Clockwise"
-      - display.page.show_next: oled
+      - if:
+          condition:
+            display_menu.is_active: oled_menu
+          then:
+            - display_menu.down: oled_menu
+          else:
+            - logger.log: "Turned Clockwise"
+            - display.page.show_next: oled
     on_anticlockwise:
-      - logger.log: "Turned Anticlockwise"
-      - display.page.show_previous: oled
-
+      - if:
+          condition:
+            display_menu.is_active: oled_menu
+          then:
+            - display_menu.up: oled_menu
+          else:
+            - logger.log: "Turned Anticlockwise"
+            - display.page.show_previous: oled
+  - platform: homeassistant
+    name: "Sunrise Brightness"
+    entity_id: sun.sun
+    id: sun_elevation
+    attribute: elevation
+    on_value:
+      then:
+        - lambda: |-
+            // Sun is considered "up" when elevation > 0
+            bool is_sun_up = id(sun_elevation).state > 0;
+            id(oled).set_brightness(is_sun_up ? 1.0 : 0.0);
 i2s_audio:
   - id: i2s_out
     i2s_lrclk_pin: GPIO23
@@ -171,6 +222,728 @@ text_sensor:
     name: "Alarm 2 Time"
     id: alarm2_time
 
+spi:
+  clk_pin: GPIO33
+  mosi_pin: GPIO32
+  
+graphical_display_menu:
+  id: oled_menu
+  display: oled
+  menu_item_value: !lambda |-
+    std::string label = " ";
+    if (it->is_item_selected && it->is_menu_editing) {
+      label.append("|");
+      label.append(it->item->get_value_text());
+    } else {
+      label.append(it->item->get_value_text());
+    }
+    return label;
+  font: font3
+  on_redraw:
+    then:
+      component.update: oled
+  active: false
+  mode: rotary
+  items:
+    - type: command
+      text: 'Back'
+      on_value:
+        then:
+          - display_menu.hide
+    - type: menu
+      text: !lambda 'return std::string(" Master: ") + (id(bedroom_lights_state).state ? "On" : "Off");'
+      items:
+        - type: back
+          text: 'Back'
+        - type: command
+          text: ' 0%'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: light.turn_off
+                  data:
+                    entity_id: light.bedroom_lights
+        - type: command
+          text: ' 30%'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: light.turn_on
+                  data:
+                    entity_id: light.bedroom_lights
+                    brightness_pct: '30'
+        - type: command
+          text: ' 60%'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: light.turn_on
+                  data:
+                    entity_id: light.bedroom_lights
+                    brightness_pct: '60'
+        - type: command
+          text: ' 80%'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: light.turn_on
+                  data:
+                    entity_id: light.bedroom_lights
+                    brightness_pct: '80'
+        - type: command
+          text: ' 100%'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: light.turn_on
+                  data:
+                    entity_id: light.bedroom_lights
+                    brightness_pct: '100'
+    - type: menu
+      text: ' Blinds'
+      items:
+        - type: back
+          text: 'Back'
+        - type: command
+          text: ' Open'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: cover.open_cover
+                  data:
+                    entity_id: cover.blinds_curtain
+        - type: command
+          text: ' Close'
+          on_value:
+            then:
+              - homeassistant.service:
+                  service: cover.close_cover
+                  data:
+                    entity_id: cover.blinds_curtain
+    - type: command
+      text: !lambda 'return std::string(" Kettle: ") + (id(kettle_power_switch).state ? "On" : "Off");'
+      on_value:
+        then:
+          - homeassistant.service:
+              service: !lambda 'return id(kettle_power_switch).state ? "switch.turn_off" : "switch.turn_on";'
+              data:
+                entity_id: switch.kettle_power_switch
+    - type: command
+      text: !lambda 'return std::string(" Common: ") + (id(common_lights_state).state ? "On" : "Off");'
+      on_value:
+        then:
+          - homeassistant.service:
+              service: !lambda 'return id(common_lights_state).state ? "light.turn_off" : "light.turn_on";'
+              data:
+                entity_id: light.common_area_lights
+    - type: menu
+      text: ' Alarm 1'
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("display_menu", "enter: %s", it->get_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("display_menu", "leave: %s", it->get_text().c_str());'
+      items:
+        - type: back
+          text: 'Back'
+        - type: switch
+          immediate_edit: false
+          on_text: 'On'
+          off_text: 'Off'
+          switch: alarm1_switch
+        - type: menu
+          text: !lambda 'return " " + id(alarm1_time).state.substr(0, 5);'
+          items:
+            - type: back
+              text: 'Back'
+            - type: custom
+              immediate_edit: false
+              value_lambda: |-
+                return id(alarm1_time).state.substr(0, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(0, 1));
+                      digit = (digit + 1) % 3;  // 0-2 for first digit
+                      id(temp_time) = std::to_string(digit) + id(alarm1_time).state.substr(1);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(0, 1));
+                      digit = (digit + 2) % 3;  // 0-2 for first digit
+                      id(temp_time) = std::to_string(digit) + id(alarm1_time).state.substr(1);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+            - type: custom
+              immediate_edit: false
+              value_lambda: |-
+                return id(alarm1_time).state.substr(1, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(1, 1));
+                      int hour_tens = std::stoi(id(alarm1_time).state.substr(0, 1));
+                      digit = (digit + 1) % (hour_tens == 2 ? 4 : 10);
+                      id(temp_time) = id(alarm1_time).state.substr(0, 1) + std::to_string(digit) + id(alarm1_time).state.substr(2);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(1, 1));
+                      int hour_tens = std::stoi(id(alarm1_time).state.substr(0, 1));
+                      digit = (digit + (hour_tens == 2 ? 3 : 9)) % (hour_tens == 2 ? 4 : 10);
+                      id(temp_time) = id(alarm1_time).state.substr(0, 1) + std::to_string(digit) + id(alarm1_time).state.substr(2);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+            - type: custom
+              immediate_edit: false 
+              value_lambda: |-
+                return id(alarm1_time).state.substr(3, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(3, 1));
+                      digit = (digit + 1) % 6;  // 0-5 for minute tens
+                      id(temp_time) = id(alarm1_time).state.substr(0, 3) + std::to_string(digit) + id(alarm1_time).state.substr(4);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(3, 1));
+                      digit = (digit + 5) % 6;  // 0-5 for minute tens
+                      id(temp_time) = id(alarm1_time).state.substr(0, 3) + std::to_string(digit) + id(alarm1_time).state.substr(4);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+            - type: custom
+              immediate_edit: false
+              value_lambda: |-
+                return id(alarm1_time).state.substr(4, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(4, 1));
+                      digit = (digit + 1) % 10;  // 0-9
+                      id(temp_time) = id(alarm1_time).state.substr(0, 4) + std::to_string(digit);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm1_time).state.substr(4, 1));
+                      digit = (digit + 9) % 10;  // 0-9
+                      id(temp_time) = id(alarm1_time).state.substr(0, 4) + std::to_string(digit);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm1_time
+                        time: !lambda 'return id(temp_time);'
+        - type: menu
+          text: " Days"
+          items:
+            - type: back
+              text: 'Back'
+            - type: switch
+              immediate_edit: false
+              on_text: 'Mon: On'
+              off_text: 'Mon: Off'
+              switch: monday1_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Tue: On'
+              off_text: 'Tue: Off'
+              switch: tuesday1_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Wed: On'
+              off_text: 'Wed: Off'
+              switch: wednesday1_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Thu: On'
+              off_text: 'Thu: Off'
+              switch: thursday1_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Fri: On'
+              off_text: 'Fri: Off'
+              switch: friday1_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Sat: On'
+              off_text: 'Sat: Off'
+              switch: saturday1_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Sun: On'
+              off_text: 'Sun: Off'
+              switch: sunday1_switch
+
+    - type: menu
+      text: ' Alarm 2'
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("display_menu", "enter: %s", it->get_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("display_menu", "leave: %s", it->get_text().c_str());'
+      items:
+        - type: back
+          text: 'Back'
+        - type: switch
+          immediate_edit: false
+          on_text: 'On'
+          off_text: 'Off'
+          switch: alarm2_switch
+        - type: menu
+          text: !lambda 'return " " + id(alarm2_time).state.substr(0, 5);'
+          items:
+            - type: back
+              text: 'Back'
+            - type: custom
+              immediate_edit: false
+              value_lambda: |-
+                return id(alarm2_time).state.substr(0, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(0, 1));
+                      digit = (digit + 1) % 3;  // 0-2 for first digit
+                      id(temp_time) = std::to_string(digit) + id(alarm2_time).state.substr(1);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(0, 1));
+                      digit = (digit + 2) % 3;  // 0-2 for first digit
+                      id(temp_time) = std::to_string(digit) + id(alarm2_time).state.substr(1);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+            - type: custom
+              immediate_edit: false
+              value_lambda: |-
+                return id(alarm2_time).state.substr(1, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(1, 1));
+                      int hour_tens = std::stoi(id(alarm2_time).state.substr(0, 1));
+                      digit = (digit + 1) % (hour_tens == 2 ? 4 : 10);
+                      id(temp_time) = id(alarm2_time).state.substr(0, 1) + std::to_string(digit) + id(alarm2_time).state.substr(2);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(1, 1));
+                      int hour_tens = std::stoi(id(alarm2_time).state.substr(0, 1));
+                      digit = (digit + (hour_tens == 2 ? 3 : 9)) % (hour_tens == 2 ? 4 : 10);
+                      id(temp_time) = id(alarm2_time).state.substr(0, 1) + std::to_string(digit) + id(alarm2_time).state.substr(2);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+            - type: custom
+              immediate_edit: false 
+              value_lambda: |-
+                return id(alarm2_time).state.substr(3, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(3, 1));
+                      digit = (digit + 1) % 6;  // 0-5 for minute tens
+                      id(temp_time) = id(alarm2_time).state.substr(0, 3) + std::to_string(digit) + id(alarm2_time).state.substr(4);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(3, 1));
+                      digit = (digit + 5) % 6;  // 0-5 for minute tens
+                      id(temp_time) = id(alarm2_time).state.substr(0, 3) + std::to_string(digit) + id(alarm2_time).state.substr(4);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+            - type: custom
+              immediate_edit: false
+              value_lambda: |-
+                return id(alarm2_time).state.substr(4, 1);
+              on_next:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(4, 1));
+                      digit = (digit + 1) % 10;  // 0-9
+                      id(temp_time) = id(alarm2_time).state.substr(0, 4) + std::to_string(digit);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+              on_prev:
+                then:
+                  - lambda: |-
+                      int digit = std::stoi(id(alarm2_time).state.substr(4, 1));
+                      digit = (digit + 9) % 10;  // 0-9
+                      id(temp_time) = id(alarm2_time).state.substr(0, 4) + std::to_string(digit);
+                  - homeassistant.service:
+                      service: input_datetime.set_datetime
+                      data:
+                        entity_id: input_datetime.alarm2_time
+                        time: !lambda 'return id(temp_time);'
+        - type: menu
+          text: " Days"
+          items:
+            - type: back
+              text: 'Back'
+            - type: switch
+              immediate_edit: false
+              on_text: 'Mon: On'
+              off_text: 'Mon: Off'
+              switch: monday2_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Tue: On'
+              off_text: 'Tue: Off'
+              switch: tuesday2_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Wed: On'
+              off_text: 'Wed: Off'
+              switch: wednesday2_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Thu: On'
+              off_text: 'Thu: Off'
+              switch: thursday2_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Fri: On'
+              off_text: 'Fri: Off'
+              switch: friday2_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Sat: On'
+              off_text: 'Sat: Off'
+              switch: saturday2_switch
+            - type: switch
+              immediate_edit: false
+              on_text: 'Sun: On'
+              off_text: 'Sun: Off'
+              switch: sunday2_switch
+
+switch:
+  - platform: template
+    name: "Alarm 1 Switch"
+    id: alarm1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_state).state; 
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_state
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_state
+  - platform: template
+    name: "Alarm 2 Switch"
+    id: alarm2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_state).state; 
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_state
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_state
+  - platform: template
+    name: "Monday 1"
+    id: monday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_monday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_monday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_monday
+  - platform: template
+    name: "Tuesday 1"
+    id: tuesday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_tuesday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_tuesday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_tuesday
+  - platform: template
+    name: "Wednesday 1"
+    id: wednesday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_wednesday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_wednesday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_wednesday
+  - platform: template
+    name: "Thursday 1"
+    id: thursday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_thursday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_thursday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_thursday
+  - platform: template
+    name: "Friday 1"
+    id: friday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_friday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_friday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_friday
+  - platform: template
+    name: "Saturday 1"
+    id: saturday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_saturday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_saturday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_saturday
+  - platform: template
+    name: "Sunday 1"
+    id: sunday1_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm1_sunday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm1_sunday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm1_sunday
+  - platform: template
+    name: "Monday 2"
+    id: monday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_monday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_monday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_monday
+  - platform: template
+    name: "Tuesday 2"
+    id: tuesday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_tuesday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_tuesday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_tuesday
+  - platform: template
+    name: "Wednesday 2"
+    id: wednesday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_wednesday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_wednesday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_wednesday
+  - platform: template
+    name: "Thursday 2"
+    id: thursday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_thursday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_thursday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_thursday
+  - platform: template
+    name: "Friday 2"
+    id: friday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_friday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_friday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_friday
+  - platform: template
+    name: "Saturday 2"
+    id: saturday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_saturday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_saturday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_saturday
+  - platform: template
+    name: "Sunday 2"
+    id: sunday2_switch
+    optimistic: true
+    lambda: |-
+      return id(alarm2_sunday).state;
+    on_turn_on:
+      - homeassistant.service:
+          service: input_boolean.turn_on
+          data:
+            entity_id: input_boolean.alarm2_sunday
+    on_turn_off:
+      - homeassistant.service:
+          service: input_boolean.turn_off
+          data:
+            entity_id: input_boolean.alarm2_sunday
+
+select:
+  - platform: template
+    id: alarm_1
+    optimistic: true
+    options:
+      - 'On'
+      - 'Off'
+  - platform: template
+    id: alarm_2
+    optimistic: true
+    options:
+      - 'On'
+      - 'Off'
+
 font:
   - file: "ComicSansMS3.ttf"
     id: font1
@@ -182,10 +955,6 @@ font:
     id: font3
     size: 20
 
-spi:
-  clk_pin: GPIO33
-  mosi_pin: GPIO32
-
 display:
   - platform: ssd1351_spi
     model: "SSD1351 128x128"
@@ -193,12 +962,14 @@ display:
     cs_pin: GPIO26
     dc_pin: GPIO25
     reset_pin: GPIO27
-    brightness: 0.1
+    brightness: 0
     pages:
       - id: page1
         lambda: |-
+        
           auto time = id(esptime).now();
-          it.printf(0, 0, id(font1), "%02d:%02d", time.hour, time.minute);
+
+          it.printf(0, 0, id(font1), Color(128, 128, 128), "%02d:%02d", time.hour, time.minute);
 
           // Helper function to get minutes since midnight
           auto get_minutes = [](const std::string& time_str) -> int {
@@ -282,7 +1053,7 @@ display:
           
           // Display next alarm if found
           if (found_next) {
-            it.printf(0, 80, id(font2), "%s %s", next_day.c_str(), next_time.c_str());
+            it.printf(0, 80, id(font2), Color(128, 128, 128), "%s %s", next_day.c_str(), next_time.c_str());
           }
       - id: page2
         lambda: |-
@@ -296,10 +1067,10 @@ display:
           if (id(alarm1_saturday).state) days1 += "sa ";
           if (id(alarm1_sunday).state) days1 += "su";
         
-          it.printf(0, 20, id(font3), "Alarm 1: %s", id(alarm1_state).state ? "ON" : "OFF");
+          it.printf(0, 20, id(font3), Color(128, 128, 128), "Alarm 1: %s", id(alarm1_state).state ? "ON" : "OFF");
           std::string alarm1_time_hhmm = id(alarm1_time).state.substr(0, 5);
-          it.printf(0, 50, id(font3), "%s", alarm1_time_hhmm.c_str());
-          it.printf(0, 80, id(font3), "%s", days1.c_str());
+          it.printf(0, 50, id(font3), Color(128, 128, 128), "%s", alarm1_time_hhmm.c_str());
+          it.printf(0, 80, id(font3), Color(128, 128, 128), "%s", days1.c_str());
       - id: page3
         lambda: |-
 
@@ -312,7 +1083,7 @@ display:
           if (id(alarm2_saturday).state) days2 += "sa ";
           if (id(alarm2_sunday).state) days2 += "su";
 
-          it.printf(0, 20, id(font3), "Alarm 2: %s", id(alarm2_state).state ? "ON" : "OFF");
+          it.printf(0, 20, id(font3), Color(128, 128, 128), "Alarm 2: %s", id(alarm2_state).state ? "ON" : "OFF");
           std::string alarm2_time_hhmm = id(alarm2_time).state.substr(0, 5);
-          it.printf(0, 50, id(font3), "%s", alarm2_time_hhmm.c_str());
-          it.printf(0, 80, id(font3), "%s", days2.c_str());
+          it.printf(0, 50, id(font3), Color(128, 128, 128), "%s", alarm2_time_hhmm.c_str());
+          it.printf(0, 80, id(font3), Color(128, 128, 128), "%s", days2.c_str());
